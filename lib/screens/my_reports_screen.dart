@@ -4,6 +4,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../services/database_helper.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'photo_viewer_screen.dart';
+
 const Color primaryColor = Color(0xFF8B1F1F); // Main red
 const Color ashesiGold = Color(0xFFD4AF37);   // Success / “in progress”
 
@@ -18,7 +21,10 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
   List<dynamic> _reports = [];
   bool _isLoading = true;
 
-  final String baseUrl = 'http://10.255.238.71/datasphere';
+  final String baseUrl = 'http://10.255.249.239/datasphere';
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  bool _isPlaying = false;
+  String? _currentlyPlaying;
 
   @override
   void initState() {
@@ -71,6 +77,21 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
       );
     }
     setState(() => _isLoading = false);
+  }
+
+  String _formatDate(String? dateStr) {
+    if (dateStr == null || dateStr.isEmpty) return '';
+    try {
+      final dt = DateTime.parse(dateStr);
+      final months = ['Jan','Feb','Mar','Apr','May','Jun',
+        'Jul','Aug','Sep','Oct','Nov','Dec'];
+      final hour = dt.hour > 12 ? dt.hour - 12 : dt.hour == 0 ? 12 : dt.hour;
+      final period = dt.hour >= 12 ? 'PM' : 'AM';
+      final minute = dt.minute.toString().padLeft(2, '0');
+      return '${months[dt.month - 1]} ${dt.day}, ${dt.year} • $hour:$minute $period';
+    } catch (e) {
+      return dateStr;
+    }
   }
 
   Color _getStatusColor(String status) {
@@ -177,39 +198,114 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
                   const SizedBox(height: 8),
                   // ✅ Show photo if it exists
                   if (report['photo'] != null && report['photo'].toString().isNotEmpty)
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: report['photo'].toString().startsWith('/')
-                          ? Image.file(  // ✅ Local offline photo
-                        File(report['photo']),
-                        height: 150,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                      )
-                          : Image.network(  // ✅ Server photo
-                        '$baseUrl/uploads/${report['photo']}',
-                        height: 150,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(
+                    GestureDetector(
+                      onTap: () {
+                        // Only open fullscreen for server photos (not offline photos)
+                        if (!report['photo'].toString().startsWith('/')) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => PhotoViewerScreen(
+                                imageUrl: '$baseUrl/uploads/${report['photo']}',
+                                title: 'Report Photo',
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: report['photo'].toString().startsWith('/')
+                            ? Image.file(  // ✅ Local offline photo
+                          File(report['photo']),
                           height: 150,
-                          color: Colors.grey.shade200,
-                          child: const Center(
-                            child: Icon(Icons.broken_image, color: Colors.grey),
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                        )
+                            : Image.network(  // ✅ Server photo
+                          '$baseUrl/uploads/${report['photo']}',
+                          height: 150,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Container(
+                            height: 150,
+                            color: Colors.grey.shade200,
+                            child: const Center(
+                              child: Icon(Icons.broken_image, color: Colors.grey),
+                            ),
                           ),
                         ),
                       ),
                     ),
+
                   if (report['photo'] != null && report['photo'].toString().isNotEmpty)
                     const SizedBox(height: 8),
+
+                  if (report['latitude'] != null &&
+                      report['latitude'].toString().isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.location_on,
+                              size: 14, color: Colors.grey),
+                          const SizedBox(width: 4),
+                          Text(
+                            'GPS: ${report['latitude']}, ${report['longitude']}',
+                            style: const TextStyle(
+                                color: Colors.grey, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  if (report['audio'] != null &&
+                      report['audio'].toString().isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.mic, size: 14, color: Colors.grey),
+                          const SizedBox(width: 4),
+                          const Text('Voice note',
+                              style: TextStyle(color: Colors.grey, fontSize: 12)),
+                          const Spacer(),
+                          GestureDetector(
+                            onTap: () async {
+                              final url = 'http://10.255.249.239/datasphere/uploads/${report['audio']}';
+                              if (_isPlaying && _currentlyPlaying == url) {
+                                await _audioPlayer.stop();
+                                setState(() { _isPlaying = false; _currentlyPlaying = null; });
+                              } else {
+                                await _audioPlayer.play(UrlSource(url));
+                                setState(() { _isPlaying = true; _currentlyPlaying = url; });
+                                _audioPlayer.onPlayerComplete.listen((_) {
+                                  setState(() { _isPlaying = false; _currentlyPlaying = null; });
+                                });
+                              }
+                            },
+                            child: Icon(
+                              _isPlaying && _currentlyPlaying == 'http://10.255.249.239/datasphere/uploads/${report['audio']}'
+                                  ? Icons.stop_circle
+                                  : Icons.play_circle,
+                              color: const Color(0xFF8B1F1F),
+                              size: 28,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
                   Row(
                     children: [
                       const Icon(Icons.access_time,
                           size: 14, color: Colors.grey),
                       const SizedBox(width: 4),
-                      Text(report['created_at'],
-                          style: const TextStyle(
-                              color: Colors.grey, fontSize: 12)),
+                      Text(
+                        _formatDate(report['created_at']),
+                        style: const TextStyle(
+                            color: Colors.grey, fontSize: 12),
+                      ),
                     ],
                   ),
                 ],

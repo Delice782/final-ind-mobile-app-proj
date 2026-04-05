@@ -19,7 +19,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _isLoading = false;
   bool _obscurePassword = true;
 
-  final String baseUrl = 'http://10.255.238.71/datasphere';  //final String baseUrl = 'http://169.239.251.102/~delice.ishimwe';
+  final String baseUrl = 'http://10.255.249.239/datasphere';
 
   Future<void> _register() async {
     if (_nameController.text.trim().length < 3) {

@@ -1,8 +1,10 @@
+import 'photo_viewer_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'login_screen.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 const Color ashesiGold = Color(0xFFD4AF37);
 
@@ -20,8 +22,12 @@ class _FacilitiesDashboardScreenState
   List<dynamic> _reports = [];
   bool _isLoading = true;
   String _filterStatus = 'All';
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  bool _isPlaying = false;
+  String? _currentlyPlaying;
 
-  final String baseUrl = 'http://10.255.238.71/datasphere';
+  final String baseUrl = 'http://10.255.249.239/datasphere';
+
 
   @override
   void initState() {
@@ -29,6 +35,12 @@ class _FacilitiesDashboardScreenState
     _fetchReports();
   }
 
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
+
+  }
   Future<void> _fetchReports() async {
     try {
       final response = await http.get(
@@ -90,6 +102,20 @@ class _FacilitiesDashboardScreenState
       context,
       MaterialPageRoute(builder: (_) => const LoginScreen()),
     );
+  }
+  String _formatDate(String? dateStr) {
+    if (dateStr == null || dateStr.isEmpty) return '';
+    try {
+      final dt = DateTime.parse(dateStr);
+      final months = ['Jan','Feb','Mar','Apr','May','Jun',
+        'Jul','Aug','Sep','Oct','Nov','Dec'];
+      final hour = dt.hour > 12 ? dt.hour - 12 : dt.hour == 0 ? 12 : dt.hour;
+      final period = dt.hour >= 12 ? 'PM' : 'AM';
+      final minute = dt.minute.toString().padLeft(2, '0');
+      return '${months[dt.month - 1]} ${dt.day}, ${dt.year} • $hour:$minute $period';
+    } catch (e) {
+      return dateStr;
+    }
   }
 
   Color _getStatusColor(String status) {
@@ -327,37 +353,118 @@ class _FacilitiesDashboardScreenState
                       style: const TextStyle(fontSize: 13),
                     ),
 
+                    if (report['latitude'] != null &&
+                        report['latitude'].toString().isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.location_on,
+                                size: 14, color: Colors.grey),
+                            const SizedBox(width: 4),
+                            Text(
+                              'GPS: ${report['latitude']}, ${report['longitude']}',
+                              style: const TextStyle(
+                                  color: Colors.grey, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    if (report['audio'] != null &&
+                        report['audio'].toString().isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.mic, size: 14, color: Colors.grey),
+                            const SizedBox(width: 4),
+                            const Text('Voice note',
+                                style: TextStyle(color: Colors.grey, fontSize: 12)),
+                            const Spacer(),
+                            GestureDetector(
+                              onTap: () async {
+                                final url = '$baseUrl/uploads/${report['audio']}';
+                                if (_isPlaying && _currentlyPlaying == url) {
+                                  await _audioPlayer.stop();
+                                  setState(() { _isPlaying = false; _currentlyPlaying = null; });
+                                } else {
+                                  await _audioPlayer.play(UrlSource(url));
+                                  setState(() { _isPlaying = true; _currentlyPlaying = url; });
+                                  _audioPlayer.onPlayerComplete.listen((_) {
+                                    setState(() { _isPlaying = false; _currentlyPlaying = null; });
+                                  });
+                                }
+                              },
+                              child: Icon(
+                                _isPlaying && _currentlyPlaying == '$baseUrl/uploads/${report['audio']}'
+                                    ? Icons.stop_circle
+                                    : Icons.play_circle,
+                                color: const Color(0xFF8B1F1F),
+                                size: 28,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    Row(
+                      children: [
+                        const Icon(Icons.access_time, size: 14, color: Colors.grey),
+                        const SizedBox(width: 4),
+                        Text(
+                          _formatDate(report['created_at']),
+                          style: const TextStyle(color: Colors.grey, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+
                     const SizedBox(height: 8),
 
+                    /// IMAGE
                     /// IMAGE
                     if (report['photo'] != null &&
                         report['photo']
                             .toString()
                             .isNotEmpty)
-                      ClipRRect(
-                        borderRadius:
-                        BorderRadius.circular(8),
-
-                        child: Image.network(
-                          '$baseUrl/uploads/${report['photo']}',
-                          height: 150,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-
-                          errorBuilder:
-                              (context, error, stackTrace) {
-                            return Container(
-                              height: 150,
-                              color: Colors.grey.shade200,
-
-                              child: const Center(
-                                child: Icon(
-                                  Icons.broken_image,
-                                  color: Colors.grey,
-                                ),
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => PhotoViewerScreen(
+                                imageUrl: '$baseUrl/uploads/${report['photo']}',
+                                title: 'Report Photo',
                               ),
-                            );
-                          },
+                            ),
+                          );
+                        },
+                        child: ClipRRect(
+                          borderRadius:
+                          BorderRadius.circular(8),
+
+                          child: Image.network(
+                            '$baseUrl/uploads/${report['photo']}',
+                            height: 150,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+
+                            errorBuilder:
+                                (context, error, stackTrace) {
+                              return Container(
+                                height: 150,
+                                color: Colors.grey.shade200,
+
+                                child: const Center(
+                                  child: Icon(
+                                    Icons.broken_image,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
                         ),
                       ),
 

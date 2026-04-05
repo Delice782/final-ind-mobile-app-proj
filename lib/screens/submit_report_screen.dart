@@ -6,6 +6,12 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter_sms/flutter_sms.dart';
 import '../services/database_helper.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_sound/flutter_sound.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'dart:async';
+import 'package:path_provider/path_provider.dart';
 
 const Color ashesiGold = Color(0xFFFFD700); // Gold color for unified theme
 
@@ -19,23 +25,76 @@ class SubmitReportScreen extends StatefulWidget {
 class _SubmitReportScreenState extends State<SubmitReportScreen> {
   final _descriptionController = TextEditingController();
   String? _selectedBuilding;
-  String? _selectedRoom;
   String? _selectedCategory;
   File? _selectedImage;
   bool _isLoading = false;
   final ImagePicker _picker = ImagePicker();
 
-  final String baseUrl = 'http://10.255.238.71/datasphere';
+  double? _latitude;
+  double? _longitude;
+  String _locationStatus = 'Tap to capture location';
+  final FlutterSoundRecorder _recorder = FlutterSoundRecorder();  final AudioPlayer _audioPlayer = AudioPlayer();
+  bool _isRecording = false;
+  bool _isPlaying = false;
+  String? _audioPath;
+  String _recordStatus = 'Tap mic to record voice note';
+  Duration _recordDuration = Duration.zero;
+  Timer? _recordTimer;
+
+  final String baseUrl = 'http://10.255.249.239/datasphere';
 
   final List<String> buildings = [
-    'Main Academic Block',
-    'Engineering Block',
-    'Residential Block A',
-    'Residential Block B',
-    'Library',
-    'Cafeteria',
-    'Sports Complex',
-    'Admin Block',
+    // Academic & Administrative
+    'Radichel Hall',
+    'Warren Library',
+    'Apt Hall',
+    'Jackson Hall',
+    'Databank Foundation Hall',
+    'Ashesi Bookshop',
+    'King Engineering Building',
+    'Nutor Hall',
+    'Fabrication Lab (Fab Lab)',
+    'Engineering Workshop',
+
+    // Dining
+    'The Hive',
+    'The Grill',
+    'Bliss Lounge',
+
+    // Health & Sports
+    'Natembea Health Centre',
+    'Sports Centre',
+    'Basketball / Volleyball Courts',
+    'Isolation Wards',
+
+    // Courtyards, Plazas & Lobbies
+    'Archer Cornfield Courtyard',
+    'Founders Plaza',
+    'Collins Courtyard',
+    'Porters Lodge (Student Dorms)',
+    'Thacher Arboretum',
+
+    // Student Residential Halls
+    'Sutherland Hall',
+    'Amu Hall',
+    'Mathaai Hall',
+    'Hall 2C',
+    'Oteng Korankye II Hall',
+    'Sisulu Hall',
+    'Tawiah Hall',
+    'Hall 2D',
+    'Hall 2E',
+    'New Hostel',
+
+    // Centres & Institutions
+    'Entrepreneurship, Innovation & Service Centre',
+
+    // Faculty & Staff Housing
+    'Leonard House',
+
+    // Utilities
+    'Water Treatment Plant',
+    'Biodigester and Waste Treatment Plant',
   ];
 
   final List<String> categories = [
@@ -48,7 +107,77 @@ class _SubmitReportScreenState extends State<SubmitReportScreen> {
     'Other',
   ];
 
-  final List<String> rooms = List.generate(20, (i) => 'Room ${i + 1}');
+  Future<void> _startRecording() async {
+    final status = await Permission.microphone.request();
+    if (!status.isGranted) {
+      setState(() => _recordStatus = 'Microphone permission denied');
+      return;
+    }
+
+    final appDir = await getApplicationDocumentsDirectory();
+    final path = '${appDir.path}/voice_note_${DateTime.now().millisecondsSinceEpoch}.aac';
+
+    await _recorder.openRecorder();
+    await _recorder.startRecorder(toFile: path, codec: Codec.aacMP4);
+
+    _recordDuration = Duration.zero;
+    _recordTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      setState(() => _recordDuration += const Duration(seconds: 1));
+    });
+    setState(() {
+      _isRecording = true;
+      _audioPath = path;
+      _recordStatus = 'Recording...';
+    });
+  }
+
+  Future<void> _stopRecording() async {
+    await _recorder.stopRecorder();
+    await _recorder.closeRecorder();
+    _recordTimer?.cancel();
+    setState(() {
+      _isRecording = false;
+      _recordStatus = 'Voice note recorded ✓';
+    });
+  }
+
+  Future<void> _playRecording() async {
+    if (_audioPath == null) return;
+    if (_isPlaying) {
+      await _audioPlayer.stop();
+      setState(() => _isPlaying = false);
+      return;
+    }
+    final cleanPath = _audioPath!.replaceFirst('file://', '');
+    await _audioPlayer.play(DeviceFileSource(cleanPath));
+    setState(() => _isPlaying = true);
+    _audioPlayer.onPlayerComplete.listen((_) {
+      setState(() => _isPlaying = false);
+    });
+  }
+
+  Future<void> _captureLocation() async {
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        setState(() => _locationStatus = 'Location permission denied');
+        return;
+      }
+    }
+    try {
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      setState(() {
+        _latitude = position.latitude;
+        _longitude = position.longitude;
+        _locationStatus = 'Location captured ✓';
+      });
+    } catch (e) {
+      setState(() => _locationStatus = 'Could not get location');
+    }
+  }
 
   Future<void> _pickImage(ImageSource source) async {
     final XFile? image = await _picker.pickImage(source: source);
@@ -57,11 +186,11 @@ class _SubmitReportScreenState extends State<SubmitReportScreen> {
     }
   }
 
-  Future<void> _sendSMSAlert(String building, String room, String category) async {
+  Future<void> _sendSMSAlert(String building, String category) async {
     String message =
-        'New DataSphere Report!\nCategory: $category\nLocation: $building - $room\nPlease check the dashboard.';
+        'New DataSphere Report!\nCategory: $category\nLocation: $building\nPlease check the dashboard.';
 
-    List<String> recipients = ['+233256439757']; // Replace with real number
+    List<String> recipients = ['+233544555902']; // Replace with real number
 
     try {
       await sendSMS(message: message, recipients: recipients);
@@ -112,9 +241,8 @@ class _SubmitReportScreenState extends State<SubmitReportScreen> {
     await _syncOfflineReports();
 
     if (_selectedBuilding == null ||
-        _selectedRoom == null ||
         _selectedCategory == null ||
-        _descriptionController.text.isEmpty) {
+        _descriptionController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content: Text('Please fill in all fields'),
@@ -136,12 +264,21 @@ class _SubmitReportScreenState extends State<SubmitReportScreen> {
 
       request.fields['user_id'] = userId.toString();
       request.fields['building'] = _selectedBuilding!;
-      request.fields['room'] = _selectedRoom!;
+      request.fields['room'] = '';  // Send empty string
       request.fields['category'] = _selectedCategory!;
-      request.fields['description'] = _descriptionController.text;
+      request.fields['description'] = _descriptionController.text.trim();
+      request.fields['latitude'] = _latitude?.toString() ?? '';
+      request.fields['longitude'] = _longitude?.toString() ?? '';
 
       if (_selectedImage != null) {
         request.files.add(await http.MultipartFile.fromPath('photo', _selectedImage!.path));
+      }
+
+      if (_audioPath != null) {
+        final cleanPath = _audioPath!.replaceFirst('file://', '');
+        if (await File(cleanPath).exists()) {
+          request.files.add(await http.MultipartFile.fromPath('audio', cleanPath));
+        }
       }
 
       final response = await request.send();
@@ -151,7 +288,7 @@ class _SubmitReportScreenState extends State<SubmitReportScreen> {
       if (!mounted) return;
 
       if (data['success']) {
-        await _sendSMSAlert(_selectedBuilding!, _selectedRoom!, _selectedCategory!);
+        await _sendSMSAlert(_selectedBuilding!, _selectedCategory!);
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -171,9 +308,9 @@ class _SubmitReportScreenState extends State<SubmitReportScreen> {
       await DatabaseHelper.instance.insertReport({
         'user_id': userId,
         'building': _selectedBuilding,
-        'room': _selectedRoom,
+        'room': '',
         'category': _selectedCategory,
-        'description': _descriptionController.text,
+        'description': _descriptionController.text.trim(),
         'photo': _selectedImage?.path ?? '',
         'created_at': DateTime.now().toString(),
         'synced': 0,
@@ -181,9 +318,13 @@ class _SubmitReportScreenState extends State<SubmitReportScreen> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('No internet! Report saved offline and will sync automatically.'),
-            backgroundColor: Colors.orange),
+        SnackBar(
+            content: Text(
+                _selectedBuilding == null ? 'Building missing'
+                    : _selectedCategory == null ? 'Category missing'
+                    : 'Description missing'
+            ),
+            backgroundColor: Colors.red),
       );
       Navigator.pop(context);
     }
@@ -203,7 +344,7 @@ class _SubmitReportScreenState extends State<SubmitReportScreen> {
 
         request.fields['user_id'] = report['user_id'].toString();
         request.fields['building'] = report['building'];
-        request.fields['room'] = report['room'];
+        request.fields['room'] = report['room'] ?? '';
         request.fields['category'] = report['category'];
         request.fields['description'] = report['description'];
 
@@ -219,6 +360,15 @@ class _SubmitReportScreenState extends State<SubmitReportScreen> {
         // Ignore errors, retry later
       }
     }
+  }
+
+  @override
+  void dispose() {
+    _recorder.closeRecorder();
+    _audioPlayer.dispose();
+    _recordTimer?.cancel();
+    _descriptionController.dispose();
+    super.dispose();
   }
 
   @override
@@ -248,27 +398,20 @@ class _SubmitReportScreenState extends State<SubmitReportScreen> {
                 filled: true,
                 fillColor: Colors.white,
               ),
+              isExpanded: true,  // ✅ ADD THIS LINE
               items: buildings
-                  .map((b) => DropdownMenuItem(value: b, child: Text(b)))
+                  .map((b) => DropdownMenuItem(
+                value: b,
+                child: Text(
+                  b,
+                  overflow: TextOverflow.ellipsis,  // ✅ ADD THIS
+                  style: const TextStyle(fontSize: 13),  // ✅ ADD THIS
+                ),
+              ))
                   .toList(),
               onChanged: (val) => setState(() => _selectedBuilding = val),
             ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              value: _selectedRoom,
-              decoration: InputDecoration(
-                labelText: 'Room',
-                prefixIcon: const Icon(Icons.door_front_door_outlined),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12)),
-                filled: true,
-                fillColor: Colors.white,
-              ),
-              items: rooms
-                  .map((r) => DropdownMenuItem(value: r, child: Text(r)))
-                  .toList(),
-              onChanged: (val) => setState(() => _selectedRoom = val),
-            ),
+
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
               value: _selectedCategory,
@@ -299,6 +442,84 @@ class _SubmitReportScreenState extends State<SubmitReportScreen> {
                 fillColor: Colors.white,
               ),
             ),
+
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.location_on_outlined, color: ashesiGold),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _locationStatus,
+                      style: TextStyle(
+                        color: _latitude != null ? Colors.green : Colors.grey,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _captureLocation,
+                    child: const Text('Capture',
+                        style: TextStyle(color: ashesiGold)),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 16),
+            const Text('Voice Note (Optional)',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: _isRecording ? _stopRecording : _startRecording,
+                    child: CircleAvatar(
+                      backgroundColor: _isRecording ? Colors.red : const Color(0xFF8B1F1F),
+                      child: Icon(
+                        _isRecording ? Icons.stop : Icons.mic,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _isRecording
+                          ? 'Recording: ${_recordDuration.inSeconds}s'
+                          : _recordStatus,
+                      style: TextStyle(
+                        color: _audioPath != null ? Colors.green : Colors.grey,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                  if (_audioPath != null && !_isRecording)
+                    IconButton(
+                      icon: Icon(
+                        _isPlaying ? Icons.stop_circle : Icons.play_circle,
+                        color: ashesiGold,
+                      ),
+                      onPressed: _playRecording,
+                    ),
+                ],
+              ),
+            ),
+
             const SizedBox(height: 16),
             const Text('Photo (Optional)',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
