@@ -16,7 +16,12 @@ class DatabaseHelper {
   Future<Database> _initDB(String filePath) async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
-    return await openDatabase(path, version: 1, onCreate: _createDB);
+    return await openDatabase(
+      path,
+      version: 2,              // ✅ bumped from 1 to 2
+      onCreate: _createDB,
+      onUpgrade: _upgradeDB,   // ✅ added
+    );
   }
 
   Future _createDB(Database db, int version) async {
@@ -29,11 +34,19 @@ class DatabaseHelper {
         category TEXT,
         description TEXT,
         photo TEXT,
+        audio TEXT,            
         status TEXT DEFAULT 'Pending',
         created_at TEXT,
         synced INTEGER DEFAULT 0
       )
     ''');
+  }
+
+  // ✅ NEW: adds audio column to existing installs
+  Future _upgradeDB(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('ALTER TABLE offline_reports ADD COLUMN audio TEXT');
+    }
   }
 
   Future<int> insertReport(Map<String, dynamic> report) async {

@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'login_screen.dart';
 import 'submit_report_screen.dart';
 import 'my_reports_screen.dart';
+import 'profile_screen.dart';   // ADD THIS
 
 class StudentHomeScreen extends StatefulWidget {
   const StudentHomeScreen({super.key});
@@ -14,6 +15,7 @@ class StudentHomeScreen extends StatefulWidget {
 
 class _StudentHomeScreenState extends State<StudentHomeScreen> {
   String _name = '';
+  String _role = '';   // ADD THIS
 
   @override
   void initState() {
@@ -23,7 +25,10 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
 
   Future<void> _loadUser() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() => _name = prefs.getString('name') ?? 'User');
+    setState(() {
+      _name = prefs.getString('name') ?? 'User';
+      _role = prefs.getString('role') ?? '';   // ADD THIS
+    });
   }
 
   Future<void> _emergencyCall() async {
@@ -64,7 +69,15 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
           ],
         ),
         actions: [
-          IconButton(icon: const Icon(Icons.logout), onPressed: _logout)
+          IconButton(
+            icon: const Icon(Icons.person_outline),
+            onPressed: () async {
+              await Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const ProfileScreen()));
+              _loadUser(); // refresh name if they changed it
+            },
+          ),
+          IconButton(icon: const Icon(Icons.logout), onPressed: _logout),
         ],
       ),
       body: SingleChildScrollView(
@@ -92,6 +105,18 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
               color: const Color(0xFF34A853),
               onTap: () => Navigator.push(context,
                   MaterialPageRoute(builder: (_) => const MyReportsScreen())),
+            ),
+            const SizedBox(height: 16),
+            _buildMenuCard(
+              icon: Icons.person_outline,
+              title: 'My Profile',
+              subtitle: 'Edit your account details',
+              color: const Color(0xFF8B1F1F),
+              onTap: () async {
+                await Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const ProfileScreen()));
+                _loadUser();
+              },
             ),
             const SizedBox(height: 16),
             _buildMenuCard(

@@ -4,7 +4,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter_sms/flutter_sms.dart';
 import '../services/database_helper.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -41,7 +40,11 @@ class _SubmitReportScreenState extends State<SubmitReportScreen> {
   Duration _recordDuration = Duration.zero;
   Timer? _recordTimer;
 
-  final String baseUrl = 'http://10.255.249.239/datasphere';
+  // final String baseUrl = 'http://10.255.249.239/datasphere';
+  // final String baseUrl = 'http://169.239.251.102/~delice.ishimwe/datasphere';
+  // final String baseUrl = 'http://169.239.251.102:280/~delice.ishimwe/datasphere';
+  final String baseUrl = 'http://169.239.251.102:280/~delice.ishimwe/datasphere';
+
 
   final List<String> buildings = [
     // Academic & Administrative
@@ -137,7 +140,7 @@ class _SubmitReportScreenState extends State<SubmitReportScreen> {
     _recordTimer?.cancel();
     setState(() {
       _isRecording = false;
-      _recordStatus = 'Voice note recorded ✓';
+      _recordStatus = 'Voice note recorded';
     });
   }
 
@@ -157,6 +160,12 @@ class _SubmitReportScreenState extends State<SubmitReportScreen> {
   }
 
   Future<void> _captureLocation() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      setState(() => _locationStatus = 'Please enable GPS/Location on your phone');
+      return;
+    }
+
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
@@ -165,9 +174,18 @@ class _SubmitReportScreenState extends State<SubmitReportScreen> {
         return;
       }
     }
+
+    if (permission == LocationPermission.deniedForever) {
+      setState(() => _locationStatus = 'Location permission permanently denied — enable in settings');
+      return;
+    }
+
+    setState(() => _locationStatus = 'Getting location...');
+
     try {
       Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 15),
       );
       setState(() {
         _latitude = position.latitude;
@@ -175,7 +193,19 @@ class _SubmitReportScreenState extends State<SubmitReportScreen> {
         _locationStatus = 'Location captured ✓';
       });
     } catch (e) {
-      setState(() => _locationStatus = 'Could not get location');
+      try {
+        Position position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.low,
+          timeLimit: const Duration(seconds: 10),
+        );
+        setState(() {
+          _latitude = position.latitude;
+          _longitude = position.longitude;
+          _locationStatus = 'Location captured ✓ (low accuracy)';
+        });
+      } catch (e2) {
+        setState(() => _locationStatus = 'Could not get location — try enabling GPS');
+      }
     }
   }
 
@@ -183,19 +213,6 @@ class _SubmitReportScreenState extends State<SubmitReportScreen> {
     final XFile? image = await _picker.pickImage(source: source);
     if (image != null) {
       setState(() => _selectedImage = File(image.path));
-    }
-  }
-
-  Future<void> _sendSMSAlert(String building, String category) async {
-    String message =
-        'New DataSphere Report!\nCategory: $category\nLocation: $building\nPlease check the dashboard.';
-
-    List<String> recipients = ['+233544555902']; // Replace with real number
-
-    try {
-      await sendSMS(message: message, recipients: recipients);
-    } catch (e) {
-      // Fail silently
     }
   }
 
@@ -288,7 +305,6 @@ class _SubmitReportScreenState extends State<SubmitReportScreen> {
       if (!mounted) return;
 
       if (data['success']) {
-        await _sendSMSAlert(_selectedBuilding!, _selectedCategory!);
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -312,19 +328,17 @@ class _SubmitReportScreenState extends State<SubmitReportScreen> {
         'category': _selectedCategory,
         'description': _descriptionController.text.trim(),
         'photo': _selectedImage?.path ?? '',
+        'audio': _audioPath ?? '',           // ✅ ADDED
         'created_at': DateTime.now().toString(),
         'synced': 0,
       });
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text(
-                _selectedBuilding == null ? 'Building missing'
-                    : _selectedCategory == null ? 'Category missing'
-                    : 'Description missing'
-            ),
-            backgroundColor: Colors.red),
+        const SnackBar(
+          content: Text('No internet — report saved offline and will sync later.'), // ✅ FIXED
+          backgroundColor: Colors.orange,
+        ),
       );
       Navigator.pop(context);
     }
@@ -347,6 +361,14 @@ class _SubmitReportScreenState extends State<SubmitReportScreen> {
         request.fields['room'] = report['room'] ?? '';
         request.fields['category'] = report['category'];
         request.fields['description'] = report['description'];
+
+        // ✅ ADDED: sync audio too
+        if (report['audio'] != null && report['audio'] != '') {
+          final cleanPath = report['audio'].toString().replaceFirst('file://', '');
+          if (await File(cleanPath).exists()) {
+            request.files.add(await http.MultipartFile.fromPath('audio', cleanPath));
+          }
+        }
 
         if (report['photo'] != '') {
           request.files.add(await http.MultipartFile.fromPath('photo', report['photo']));
