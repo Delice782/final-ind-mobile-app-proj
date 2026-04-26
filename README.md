@@ -13,8 +13,8 @@ through the app, while IT admins manage users through a web panel.
 - Voice note recording on reports
 - GPS location capture for precise issue location
 - One-tap emergency call to Facilities office
-- Offline mode — reports saved locally and auto-synced
-- Two user roles on the mobile application — Student/Staff and Facilities Team 
+- Offline mode - reports saved locally and auto-synced
+- Two user roles on the mobile application - Student/Staff and Facilities Team 
 - Web admin panel for IT user management
 
 ## Tech Stack
@@ -25,12 +25,12 @@ through the app, while IT admins manage users through a web panel.
 - **Server:** Ashesi University Server
 
 ## Local Device Resources Used
-1. Camera — image_picker
-2. Gallery/File Picker — image_picker
-3. Microphone — flutter_sound
-4. GPS/Geolocation — geolocator
-5. Phone Dialer — url_launcher
-6. Offline Storage — sqflite
+1. Camera - image_picker
+2. Gallery/File Picker - image_picker
+3. Microphone - flutter_sound
+4. GPS/Geolocation - geolocator
+5. Phone Dialer - url_launcher
+6. Offline Storage - sqflite
 
 ## Links
 - **YouTube Demo:** [Add your link here]
