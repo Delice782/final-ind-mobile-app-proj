@@ -33,5 +33,5 @@ through the app, while IT admins manage users through a web panel.
 6. Offline Storage - sqflite
 
 ## Links
-- **YouTube Demo:** [Add your link here]
+- **Link to the Demo:** [Video Link: https://drive.google.com/file/d/1NMWbJXe-QrNUP6tL-vnZ78u5W9V6no7J/view?usp=sharing]
 - **Web Admin Panel:** http://169.239.251.102:280/~delice.ishimwe/datasphere-admin/login.php
