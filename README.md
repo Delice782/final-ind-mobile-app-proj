@@ -33,9 +33,9 @@ through the app, while IT admins manage users through a web panel.
 6. Offline Storage - sqflite
 
 ## Links
-- **Video Link: App Demo on Google Drive:** https://drive.google.com/file/d/1ArYKRYdaeOv_hEvEsgx1qmOT9bt83yVp/view?usp=sharing
+- **Video App Demo on Google Drive:** https://drive.google.com/file/d/1ArYKRYdaeOv_hEvEsgx1qmOT9bt83yVp/view?usp=sharing
   
-- **Video Link_App Demo on Youtube:** https://youtu.be/-r5I4qXdSM4
+- **Video App Demo on Youtube:** https://youtu.be/-r5I4qXdSM4
   
 - **APK File:** https://drive.google.com/file/d/1bI0o9UbeDFoWzXkmentuLpxVj8HRwsgp/view?usp=sharing
   
