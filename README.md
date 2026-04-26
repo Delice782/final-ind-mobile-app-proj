@@ -36,3 +36,4 @@ through the app, while IT admins manage users through a web panel.
 - **Link to the Demo:** [Video Link: https://drive.google.com/file/d/1NMWbJXe-QrNUP6tL-vnZ78u5W9V6no7J/view?usp=sharing]
 - **APK File:** [https://drive.google.com/file/d/1bI0o9UbeDFoWzXkmentuLpxVj8HRwsgp/view?usp=sharing]
 - **Web Admin Panel:** http://169.239.251.102:280/~delice.ishimwe/datasphere-admin/login.php
+- The credentials for the IT user are provided in the Appendix section of the report submitted on Canvas.
