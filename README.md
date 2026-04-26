@@ -1,4 +1,4 @@
-# DataSphere — Campus Maintenance Reporting App
+# DataSphere - Campus Maintenance Reporting App
 
 A cross-platform mobile application built with Flutter for Ashesi University's 
 Facilities and Logistics Department.
