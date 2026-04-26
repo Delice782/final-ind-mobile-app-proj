@@ -33,7 +33,7 @@ through the app, while IT admins manage users through a web panel.
 6. Offline Storage - sqflite
 
 ## Links
-- Video - App Demo:   
-- APK File: https://drive.google.com/file/d/1bI0o9UbeDFoWzXkmentuLpxVj8HRwsgp/view?usp=sharing
+- **Video** - App Demo:   
+- **APK File:** https://drive.google.com/file/d/1bI0o9UbeDFoWzXkmentuLpxVj8HRwsgp/view?usp=sharing
 - **Web Admin Panel:** http://169.239.251.102:280/~delice.ishimwe/datasphere-admin/login.php
 - The credentials for the IT user are provided in the Appendix section of the report submitted on Canvas.
